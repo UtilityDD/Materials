@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock & Requirements of Major Materials</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            margin-top: 0;
+            font-size: 24px;
+        }
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .date-container {
+            display: flex;
+            align-items: center;
+        }
+        .date-label {
+            margin-right: -110px;
+            font-weight: bold;
+        }
+        .date-input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+        }
+        .filter {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-size: 14px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+        .checkbox-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+    overflow-y: visible;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+    background-color: white;
+    gap: 10px;
+}
+ /* Update the checkbox item styling */
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+    margin-right: 10px;
+}
+        .checkbox-item input {
+            margin-right: 8px;
+        }
+        .checkbox-item label {
+            font-weight: normal;
+            margin-bottom: 0;
+        }
+        .select-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        .select-btn {
+            padding: 5px 10px;
+            background-color: #e9ecef;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .select-btn:hover {
+            background-color: #dee2e6;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            background-color: #f1f1f1;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: white;
+            border-color: #ddd;
+            font-weight: bold;
+            position: relative;
+        }
+        .tab.active:after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background-color: white;
+        }
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+            position: relative;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .chart-info {
+            text-align: center;
+            margin: 40px 0;
+            color: #666;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #666;
+        }
+        .error {
+            color: #e74c3c;
+            padding: 10px;
+            background-color: #fadbd8;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .no-selection {
+            text-align: center;
+            margin: 40px 0;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-container">
+            <h1>Stock & Requirements Dashboard</h1>
+            <div class="date-container">
+                <span class="date-label">Report Date:18-03-2025</span>
+                <input type="date" id="reportDate" class="date-input" value="" style="visibility: hidden;">
+
+
+            </div>
+        </div>
+        
+        <div id="errorMsg" class="error" style="display: none;"></div>
+        
+        <div class="filters">
+            <div class="filter">
+                <label for="matlGroupFilter">Material Group:</label>
+                <select id="matlGroupFilter">
+                    <option value="all">All Material Groups</option>
+                </select>
+            </div>
+            <div class="filter">
+                <label for="matlDescFilter">Material Description:</label>
+                <select id="matlDescFilter">
+                    <option value="all">All Descriptions</option>
+                </select>
+            </div>
+            <div class="filter">
+                <label for="storageLocFilter">Storage Location:</label>
+                <div class="checkbox-container" id="storageLocFilter">
+                    <!-- Checkboxes will be added here dynamically -->
+                </div>
+                <div class="select-buttons">
+                    <button class="select-btn" id="selectAllSloc">Select All</button>
+                    <button class="select-btn" id="deselectAllSloc">Deselect All</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="stock">Stock</div>
+            <div class="tab" data-tab="requirements">Requirements</div>
+        </div>
+        
+        <div class="tab-content active" id="stock-tab">
+            <div class="chart-container">
+                <canvas id="stockChart" style="display: none;"></canvas>
+                <div class="chart-info" id="stockChartInfo">Loading stock data...</div>
+                <div class="no-selection" id="stockNoSelection" style="display: none;">Please select a specific Material Description to view data.</div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="requirements-tab">
+            <div class="chart-container">
+                <canvas id="reqChart" style="display: none;"></canvas>
+                <div class="chart-info" id="reqChartInfo">Loading requirements data...</div>
+                <div class="no-selection" id="reqNoSelection" style="display: none;">Please select a specific Material Description to view data.</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let stockData = [];
+        let reqData = [];
+        let stockChart = null;
+        let reqChart = null;
+        let matlGroups = new Set();
+        let matlDescByGroup = {};
+        let plantNameMap = {}; // Map to store Plant Code -> Plant Name
+        let storageLocations = new Set(); // Set to store unique Storage Locations
+        let selectedStorageLocations = new Set(); // Set to store selected Storage Locations
+        
+        // DOM elements
+        const matlGroupFilter = document.getElementById('matlGroupFilter');
+        const matlDescFilter = document.getElementById('matlDescFilter');
+        const storageLocFilter = document.getElementById('storageLocFilter');
+        const selectAllSloc = document.getElementById('selectAllSloc');
+        const deselectAllSloc = document.getElementById('deselectAllSloc');
+        const reportDate = document.getElementById('reportDate');
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const stockChartCanvas = document.getElementById('stockChart');
+        const reqChartCanvas = document.getElementById('reqChart');
+        const stockChartInfo = document.getElementById('stockChartInfo');
+        const reqChartInfo = document.getElementById('reqChartInfo');
+        const stockNoSelection = document.getElementById('stockNoSelection');
+        const reqNoSelection = document.getElementById('reqNoSelection');
+        const errorMsg = document.getElementById('errorMsg');
+        
+        // Set default report date to today
+        reportDate.valueAsDate = new Date();
+        
+        // Load data from files when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStockData();
+            loadReqData();
+        });
+        
+        // Event listeners
+        matlGroupFilter.addEventListener('change', handleMatlGroupChange);
+        matlDescFilter.addEventListener('change', handleMatlDescChange);
+        selectAllSloc.addEventListener('click', selectAllStorageLocations);
+        deselectAllSloc.addEventListener('click', deselectAllStorageLocations);
+        reportDate.addEventListener('change', updateCharts);
+        
+        // Tab functionality
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                const tabName = tab.getAttribute('data-tab');
+                tab.classList.add('active');
+                document.getElementById(`${tabName}-tab`).classList.add('active');
+            });
+        });
+        
+        // Load Stock data
+        function loadStockData() {
+            const stockFilePath = 'Stock.csv'; // Path to stock file in code folder
+            
+            stockChartInfo.textContent = "Loading stock data...";
+            
+            Papa.parse(stockFilePath, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        showError("Error parsing Stock CSV: " + results.errors[0].message);
+                        return;
+                    }
+                    
+                    stockData = results.data;
+                    processStockData();
+                    createPlantNameMap();
+                    populateFilters();
+                    populateStorageLocations();
+                    
+                    stockChartInfo.style.display = "none";
+                    stockNoSelection.style.display = "block";
+                },
+                error: function(error) {
+                    showError("Failed to load Stock CSV file: " + error.message);
+                }
+            });
+        }
+        
+        // Load ZMREQR data
+        function loadReqData() {
+            const reqFilePath = 'ZMREQR.csv'; // Path to ZMREQR file in code folder
+            
+            reqChartInfo.textContent = "Loading requirements data...";
+            
+            Papa.parse(reqFilePath, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        showError("Error parsing ZMREQR CSV: " + results.errors[0].message);
+                        return;
+                    }
+                    
+                    reqData = results.data;
+                    processReqData();
+                    updateStorageLocationsFromReqData();
+                    
+                    reqChartInfo.style.display = "none";
+                    reqNoSelection.style.display = "block";
+                },
+                error: function(error) {
+                    showError("Failed to load ZMREQR CSV file: " + error.message);
+                }
+            });
+        }
+        
+        // Create a mapping from Plant Code to Plant Name
+        function createPlantNameMap() {
+            stockData.forEach(row => {
+                if (row["Plant"] && row["Name"]) {
+                    plantNameMap[row["Plant"]] = row["Name"];
+                }
+            });
+        }
+        
+        // Get plant name from code (with fallback)
+        function getPlantName(plantCode) {
+            return plantNameMap[plantCode] || plantCode;
+        }
+        
+        // Process Stock data
+        function processStockData() {
+            matlDescByGroup = { 'all': new Set() };
+            
+            stockData.forEach(row => {
+                if (row["Matl Group"]) {
+                    const group = row["Matl Group"];
+                    matlGroups.add(group);
+                    
+                    if (!matlDescByGroup[group]) {
+                        matlDescByGroup[group] = new Set();
+                    }
+                    
+                    if (row["Material Description"]) {
+                        matlDescByGroup[group].add(row["Material Description"]);
+                        matlDescByGroup['all'].add(row["Material Description"]);
+                    }
+                }
+                
+                // Collect Storage Locations
+                if (row["SLoc"]) {
+                    storageLocations.add(row["SLoc"]);
+                    selectedStorageLocations.add(row["SLoc"]); // Initially select all
+                }
+                
+                // Convert numeric values
+                if (row["Unrestricted"]) {
+                    row["Unrestricted"] = parseFloat(row["Unrestricted"]) || 0;
+                }
+            });
+        }
+        
+        // Process ZMREQR data
+        function processReqData() {
+            reqData.forEach(row => {
+                if (row["Material Description"]) {
+                    // Add to the 'all' group
+                    if (matlDescByGroup['all']) {
+                        matlDescByGroup['all'].add(row["Material Description"]);
+                    }
+                    
+                    // Try to match with existing material groups if possible
+                    if (row["Material Number"]) {
+                        const matNum = row["Material Number"];
+                        const stockItem = stockData.find(item => item["Material"] === matNum);
+                        if (stockItem && stockItem["Matl Group"]) {
+                            const group = stockItem["Matl Group"];
+                            if (matlDescByGroup[group]) {
+                                matlDescByGroup[group].add(row["Material Description"]);
+                            }
+                        }
+                    }
+                }
+                
+                // Convert numeric values
+                if (row["Work Order Quantity"]) {
+                    row["Work Order Quantity"] = parseFloat(row["Work Order Quantity"]) || 0;
+                }
+                if (row["Issued Qty"]) {
+                    row["Issued Qty"] = parseFloat(row["Issued Qty"]) || 0;
+                }
+            });
+        }
+        
+        // Update Storage Locations from ZMREQR data
+        function updateStorageLocationsFromReqData() {
+            reqData.forEach(row => {
+                // Collect Storage Locations from ZMREQR
+                if (row["Storage Location"]) {
+                    storageLocations.add(row["Storage Location"]);
+                    selectedStorageLocations.add(row["Storage Location"]); // Initially select all
+                }
+            });
+            
+            // Refresh the storage location checkboxes
+            populateStorageLocations();
+        }
+        
+        // Populate Storage Location checkboxes
+        function populateStorageLocations() {
+            // Clear existing checkboxes
+            storageLocFilter.innerHTML = '';
+            
+            // Add checkboxes for each storage location
+            [...storageLocations].sort().forEach(sloc => {
+                const checkboxItem = document.createElement('div');
+                checkboxItem.className = 'checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `sloc-${sloc}`;
+                checkbox.value = sloc;
+                checkbox.checked = selectedStorageLocations.has(sloc);
+                checkbox.addEventListener('change', handleStorageLocationChange);
+                
+                const label = document.createElement('label');
+                label.htmlFor = `sloc-${sloc}`;
+                label.textContent = sloc;
+                
+                checkboxItem.appendChild(checkbox);
+                checkboxItem.appendChild(label);
+                storageLocFilter.appendChild(checkboxItem);
+            });
+        }
+        
+        // Handle Storage Location checkbox change
+        function handleStorageLocationChange(event) {
+            const sloc = event.target.value;
+            if (event.target.checked) {
+                selectedStorageLocations.add(sloc);
+            } else {
+                selectedStorageLocations.delete(sloc);
+            }
+            
+            // Update charts based on selection
+            updateCharts();
+        }
+        
+        // Select all Storage Locations
+        function selectAllStorageLocations() {
+            const checkboxes = storageLocFilter.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                selectedStorageLocations.add(checkbox.value);
+            });
+            updateCharts();
+        }
+        
+        // Deselect all Storage Locations
+        function deselectAllStorageLocations() {
+            const checkboxes = storageLocFilter.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                selectedStorageLocations.delete(checkbox.value);
+            });
+            updateCharts();
+        }
+        
+        // Populate Material Group and initial Material Description filters
+        function populateFilters() {
+            // Clear existing options except the first one
+            while (matlGroupFilter.options.length > 1) {
+                matlGroupFilter.remove(1);
+            }
+            
+            // Add material group options
+            [...matlGroups].sort().forEach(group => {
+                const option = document.createElement('option');
+                option.value = group;
+                option.textContent = group;
+                matlGroupFilter.appendChild(option);
+            });
+            
+            // Initially populate material descriptions with "all" group
+            updateMatlDescOptions('all');
+        }
+        
+        // Handle Material Group change - update Material Description options
+        function handleMatlGroupChange() {
+            const selectedGroup = matlGroupFilter.value;
+            updateMatlDescOptions(selectedGroup);
+            
+            // Hide charts and show "select material" message when material group changes
+            hideCharts();
+        }
+        
+        // Handle Material Description change - update charts
+        function handleMatlDescChange() {
+            const selectedDesc = matlDescFilter.value;
+            
+            if (selectedDesc !== 'all') {
+                // If a specific material description is selected, show charts
+                updateCharts();
+                showCharts();
+            } else {
+                // If "All Descriptions" is selected, hide charts
+                hideCharts();
+            }
+        }
+        
+        // Hide charts and show "select material" message
+        function hideCharts() {
+            stockChartCanvas.style.display = "none";
+            reqChartCanvas.style.display = "none";
+            stockNoSelection.style.display = "block";
+            reqNoSelection.style.display = "block";
+        }
+        
+        // Show charts and hide "select material" message
+        function showCharts() {
+            stockChartCanvas.style.display = "block";
+            reqChartCanvas.style.display = "block";
+            stockNoSelection.style.display = "none";
+            reqNoSelection.style.display = "none";
+        }
+        
+        // Update Material Description dropdown based on selected Material Group
+        function updateMatlDescOptions(group) {
+            // Clear existing options except the first one
+            while (matlDescFilter.options.length > 1) {
+                matlDescFilter.remove(1);
+            }
+            
+            // Get descriptions for the selected group
+            const descriptions = matlDescByGroup[group] || new Set();
+            
+            // Add material description options
+            [...descriptions].sort().forEach(desc => {
+                const option = document.createElement('option');
+                option.value = desc;
+                option.textContent = desc;
+                matlDescFilter.appendChild(option);
+            });
+            
+            // Reset selection to "all"
+            matlDescFilter.value = 'all';
+        }
+        
+        // Update both charts based on filters
+        function updateCharts() {
+            updateStockChart();
+            updateReqChart();
+        }
+        
+        // Update Stock chart
+        function updateStockChart() {
+            if (stockData.length === 0) return;
+            
+            const matlGroup = matlGroupFilter.value;
+            const matlDesc = matlDescFilter.value;
+            
+            // Filter data based on selections
+            let filteredData = stockData.filter(row => selectedStorageLocations.has(row["SLoc"]));
+            
+            if (matlGroup !== 'all') {
+                filteredData = filteredData.filter(row => row["Matl Group"] === matlGroup);
+            }
+            if (matlDesc !== 'all') {
+                filteredData = filteredData.filter(row => row["Material Description"] === matlDesc);
+            }
+            
+            // Group by Plant for the chart
+            const plantData = {};
+            filteredData.forEach(row => {
+                const plantCode = row["Plant"] || "Unknown";
+                const plantName = getPlantName(plantCode);
+                
+                if (!plantData[plantName]) {
+                    plantData[plantName] = 0;
+                }
+                plantData[plantName] += parseFloat(row["Unrestricted"]) || 0;
+            });
+            
+            // Create chart data
+            const labels = Object.keys(plantData).sort();
+            const values = labels.map(plant => plantData[plant]);
+            
+            // Create or update chart
+            if (stockChart) {
+                stockChart.data.labels = labels;
+                stockChart.data.datasets[0].data = values;
+                stockChart.options.plugins.title.text = 'Stock';
+                stockChart.update();
+            } else {
+                // Register the datalabels plugin
+                Chart.register(ChartDataLabels);
+                
+                stockChart = new Chart(stockChartCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Stock',
+                            data: values,
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `Stock`,
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 20
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Stock: ${context.raw.toFixed(2)}`;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                anchor: 'end',
+                                align: 'end',
+                                formatter: function(value) {
+                                    return value.toFixed(1);
+                                },
+                                font: {
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 5
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Quantity',
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Plant Name',
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                },
+                                ticks: {
+                                    maxRotation: 0,
+                                    minRotation: 0
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Update Requirements chart
+        function updateReqChart() {
+            if (reqData.length === 0) return;
+            
+            const matlGroup = matlGroupFilter.value;
+            const matlDesc = matlDescFilter.value;
+            
+            // Filter data based on selections, including storage locations
+            let filteredData = reqData.filter(row => selectedStorageLocations.has(row["Storage Location"]));
+            
+            // For material group, we need to match via material number since ZMREQR might not have group directly
+            if (matlGroup !== 'all') {
+                const materialNumbers = stockData
+                    .filter(item => item["Matl Group"] === matlGroup)
+                    .map(item => item["Material"]);
+                    
+                filteredData = filteredData.filter(row => 
+                    materialNumbers.includes(row["Material Number"])
+                );
+            }
+            
+            if (matlDesc !== 'all') {
+                filteredData = filteredData.filter(row => row["Material Description"] === matlDesc);
+            }
+            
+            // Group by Plant for the chart
+            const plantWorkOrderData = {};
+            const plantIssuedData = {};
+            
+            filteredData.forEach(row => {
+                const plantCode = row["Plant"] || "Unknown";
+                const plantName = getPlantName(plantCode);
+                
+                if (!plantWorkOrderData[plantName]) {
+                    plantWorkOrderData[plantName] = 0;
+                    plantIssuedData[plantName] = 0;
+                }
+                
+                plantWorkOrderData[plantName] += parseFloat(row["Work Order Quantity"]) || 0;
+                plantIssuedData[plantName] += parseFloat(row["Issued Qty"]) || 0;
+            });
+            
+            // Create chart data
+            const labels = [...new Set([...Object.keys(plantWorkOrderData), ...Object.keys(plantIssuedData)])].sort();
+            const workOrderValues = labels.map(plant => plantWorkOrderData[plant] || 0);
+            const issuedValues = labels.map(plant => plantIssuedData[plant] || 0);
+            
+            // Create or update chart
+            if (reqChart) {
+                reqChart.data.labels = labels;
+                reqChart.data.datasets[0].data = workOrderValues;
+                reqChart.data.datasets[1].data = issuedValues;
+                reqChart.options.plugins.title.text = `Requirements`;
+                reqChart.update();
+            } else {
+                // Register the datalabels plugin if not already registered
+                if (!Chart.registry.plugins.get('datalabels')) {
+                    Chart.register(ChartDataLabels);
+                }
+                
+                reqChart = new Chart(reqChartCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Work Order Quantity',
+                                data: workOrderValues,
+                                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Issued Quantity',
+                                data: issuedValues,
+                                backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `Requirements`,
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 20
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.dataset.label || '';
+                                        const value = context.raw.toFixed(2);
+                                        return `${label}: ${value}`;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                anchor: 'end',
+                                align: 'end',
+                                formatter: function(value) {
+                                    return value.toFixed(1);
+                                },
+                                font: {
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 5
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                stacked: false,
+                                title: {
+                                    display: true,
+                                    text: 'Quantity',
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Plant Name',
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                },
+                                ticks: {
+                                    maxRotation: 0,
+                                    minRotation: 0
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Helper for displaying errors
+        function showError(message) {
+            errorMsg.textContent = message;
+            errorMsg.style.display = 'block';
+            setTimeout(() => {
+                errorMsg.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
