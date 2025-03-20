@@ -11,7 +11,7 @@
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             color: #333;
             background-color: #f8f9fa;
         }
@@ -32,7 +32,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom:10px;
         }
         .date-container {
             display: flex;
@@ -729,164 +729,151 @@
             }
         }
         
-        // Update Requirements chart
-        function updateReqChart() {
-            if (reqData.length === 0) return;
-            
-            const matlGroup = matlGroupFilter.value;
-            const matlDesc = matlDescFilter.value;
-            
-            // Filter data based on selections, including storage locations
-            let filteredData = reqData.filter(row => selectedStorageLocations.has(row["Storage Location"]));
-            
-            // For material group, we need to match via material number since ZMREQR might not have group directly
-            if (matlGroup !== 'all') {
-                const materialNumbers = stockData
-                    .filter(item => item["Matl Group"] === matlGroup)
-                    .map(item => item["Material"]);
-                    
-                filteredData = filteredData.filter(row => 
-                    materialNumbers.includes(row["Material Number"])
-                );
+// Update Requirements chart
+function updateReqChart() {
+    if (reqData.length === 0) return;
+
+    const matlGroup = matlGroupFilter.value;
+    const matlDesc = matlDescFilter.value;
+
+    // Filter data based on selections, including storage locations
+    let filteredData = reqData.filter(row => selectedStorageLocations.has(row["Storage Location"]));
+
+    if (matlGroup !== 'all') {
+        const materialNumbers = stockData
+            .filter(item => item["Matl Group"] === matlGroup)
+            .map(item => item["Material"]);
+        
+        filteredData = filteredData.filter(row => materialNumbers.includes(row["Material Number"]));
+    }
+
+    if (matlDesc !== 'all') {
+        filteredData = filteredData.filter(row => row["Material Description"] === matlDesc);
+    }
+
+    // Compute Requirements
+    const plantRequirements = {};
+    
+    filteredData.forEach(row => {
+        const plantCode = row["Plant"] || "Unknown";
+        const plantName = getPlantName(plantCode);
+        
+        const workOrderQty = parseFloat(row["Work Order Quantity"]) || 0;
+        const issuedQty = parseFloat(row["Issued Qty"]) || 0;
+        const requirement = workOrderQty - issuedQty;
+        
+        if (requirement !== 0) { // Exclude zero values
+            if (!plantRequirements[plantName]) {
+                plantRequirements[plantName] = {
+                    requirements: 0,
+                    workOrder: 0,
+                    issued: 0
+                };
             }
             
-            if (matlDesc !== 'all') {
-                filteredData = filteredData.filter(row => row["Material Description"] === matlDesc);
+            plantRequirements[plantName].requirements += requirement;
+            plantRequirements[plantName].workOrder += workOrderQty;
+            plantRequirements[plantName].issued += issuedQty;
+        }
+    });
+
+    // Create chart data
+    const labels = Object.keys(plantRequirements).sort();
+    const requirementsValues = labels.map(plant => plantRequirements[plant].requirements);
+
+    // Create or update chart
+    if (reqChart) {
+        reqChart.data.labels = labels;
+        reqChart.data.datasets[0].data = requirementsValues;
+        reqChart.options.plugins.tooltip.callbacks.label = function(context) {
+            const plant = labels[context.dataIndex];
+            const data = plantRequirements[plant];
+            return `Req: ${context.raw.toFixed(2)}\nWork Order: ${data.workOrder.toFixed(2)}\nIssued: ${data.issued.toFixed(2)}`;
+        };
+        reqChart.options.plugins.datalabels = {
+            anchor: 'end',
+            align: 'top',
+            formatter: function(value) {
+                return value.toFixed(2);
             }
-            
-            // Group by Plant for the chart
-            const plantWorkOrderData = {};
-            const plantIssuedData = {};
-            
-            filteredData.forEach(row => {
-                const plantCode = row["Plant"] || "Unknown";
-                const plantName = getPlantName(plantCode);
-                
-                if (!plantWorkOrderData[plantName]) {
-                    plantWorkOrderData[plantName] = 0;
-                    plantIssuedData[plantName] = 0;
-                }
-                
-                plantWorkOrderData[plantName] += parseFloat(row["Work Order Quantity"]) || 0;
-                plantIssuedData[plantName] += parseFloat(row["Issued Qty"]) || 0;
-            });
-            
-            // Create chart data
-            const labels = [...new Set([...Object.keys(plantWorkOrderData), ...Object.keys(plantIssuedData)])].sort();
-            const workOrderValues = labels.map(plant => plantWorkOrderData[plant] || 0);
-            const issuedValues = labels.map(plant => plantIssuedData[plant] || 0);
-            
-            // Create or update chart
-            if (reqChart) {
-                reqChart.data.labels = labels;
-                reqChart.data.datasets[0].data = workOrderValues;
-                reqChart.data.datasets[1].data = issuedValues;
-                reqChart.options.plugins.title.text = `Requirements`;
-                reqChart.update();
-            } else {
-                // Register the datalabels plugin if not already registered
-                if (!Chart.registry.plugins.get('datalabels')) {
-                    Chart.register(ChartDataLabels);
-                }
-                
-                reqChart = new Chart(reqChartCanvas, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: 'Work Order Quantity',
-                                data: workOrderValues,
-                                backgroundColor: 'rgba(255, 99, 132, 0.7)',
-                                borderColor: 'rgba(255, 99, 132, 1)',
-                                borderWidth: 1
-                            },
-                            {
-                                label: 'Issued Quantity',
-                                data: issuedValues,
-                                backgroundColor: 'rgba(75, 192, 192, 0.7)',
-                                borderColor: 'rgba(75, 192, 192, 1)',
-                                borderWidth: 1
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: `Requirements`,
-                                font: {
-                                    size: 16,
-                                    weight: 'bold'
-                                },
-                                padding: {
-                                    top: 10,
-                                    bottom: 20
-                                }
-                            },
-                            legend: {
-                                position: 'top',
-                                labels: {
-                                    font: {
-                                        weight: 'bold'
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.dataset.label || '';
-                                        const value = context.raw.toFixed(2);
-                                        return `${label}: ${value}`;
-                                    }
-                                }
-                            },
-                            datalabels: {
-                                anchor: 'end',
-                                align: 'end',
-                                formatter: function(value) {
-                                    return value.toFixed(1);
-                                },
-                                font: {
-                                    weight: 'bold'
-                                },
-                                padding: {
-                                    top: 5
-                                }
-                            }
+        };
+        reqChart.options.plugins.tooltip.intersect = false;
+        reqChart.options.plugins.tooltip.mode = 'index';
+        reqChart.update();
+    } else {
+        reqChart = new Chart(reqChartCanvas, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Requirements',
+                    data: requirementsValues,
+                    backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: `Requirements`,
+                        font: {
+                            size: 16,
+                            weight: 'bold'
                         },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                stacked: false,
-                                title: {
-                                    display: true,
-                                    text: 'Quantity',
-                                    font: {
-                                        weight: 'bold'
-                                    }
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Plant Name',
-                                    font: {
-                                        weight: 'bold'
-                                    }
-                                },
-                                ticks: {
-                                    maxRotation: 0,
-                                    minRotation: 0
-                                }
+                        padding: {
+                            top: 10,
+                            bottom: 20
+                        }
+                    },
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                const plant = labels[context.dataIndex];
+                                const data = plantRequirements[plant];
+                                return `Req: ${context.raw.toFixed(2)}\nWork Order: ${data.workOrder.toFixed(2)}\nIssued: ${data.issued.toFixed(2)}`;
+                            }
+                        }
+                    },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        formatter: function(value) {
+                            return value.toFixed(2);
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Quantity',
+                            font: {
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Plant Name',
+                            font: {
+                                weight: 'bold'
                             }
                         }
                     }
-                });
+                }
             }
-        }
+        });
+    }
+}
         
         // Helper for displaying errors
         function showError(message) {
